@@ -6,7 +6,7 @@ const KERNELS={
 };
 const PHASES=[
   {n:'Butter',e:'🧈',t:25,c:'#f6d55c'},{n:'Salt',e:'🧂',t:25,c:'#ffffff'},
-  {n:'Fire',e:'🔥',t:25,c:'#ff6a2b'},{n:'Magnetron',e:'📡',t:30,c:'#7df9ff'}
+  {n:'Fire',e:'🔥',t:25,c:'#ff6a2b'},{n:'Microwave',e:'',t:30,c:'#7df9ff'}
 ];
 const keys={};let S=null,last=0,mx=CX,my=CY,useMouse=false;
  
@@ -35,7 +35,7 @@ function menu(title,msg){
   }
   ui.classList.remove('hide');
 }
-menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Magnetron in the middle. Arrow keys move, Space uses your ability. Pick a kernel:");
+menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Microwave in the middle. Arrow keys move, Space uses your ability. Pick a kernel:");
  
 function kernel(type,isP){
   const a=Math.random()*TAU,r=90+Math.random()*(R-130);
@@ -44,7 +44,7 @@ function kernel(type,isP){
 }
 function start(type){
   const types=Object.keys(KERNELS);
-  S={t:0,ph:0,pt:0,a1:0,a2:0,ang:0,pr:[],over:false,brk:3.5,msg:'Get ready!',pend:null,k:[kernel(type,true)]};
+  S={t:0,ph:0,pt:0,a1:0,a2:0,ang:0,pr:[],over:false,brk:3.5,msg:'Get ready!',pend:null,bx:CX,by:CY,tx:CX,ty:CY,mvT:0,moving:false,k:[kernel(type,true)]};
   for(let i=0;i<11;i++)S.k.push(kernel(types[i%3],false));
   ui.classList.add('hide');
   last=performance.now();requestAnimationFrame(loop);
@@ -68,7 +68,7 @@ function throwIt(k){
   k.held=null;k.holdT=0;
 }
 function fire(a,sp,r,col,dmg){
-  S.pr.push({x:CX+Math.cos(a)*40,y:CY+Math.sin(a)*40,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r,col,dmg,owner:'boss',from:null,held:null});
+  S.pr.push({x:S.bx+Math.cos(a)*40,y:S.by+Math.sin(a)*40,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r,col,dmg,owner:'boss',from:null,held:null});
 }
 function spawn(dt){
   S.a1+=dt;S.a2+=dt;const ph=S.ph,p=S.k[0];
@@ -91,13 +91,16 @@ function spawn(dt){
     }
   }else{
     if(S.a1>.45){S.a1=0;S.ang+=.5;for(let i=0;i<4;i++)fire(S.ang+i*TAU/4,160,5,'#7df9ff',.5)}
-    if(S.a2>3.5){S.a2=0;const a=Math.atan2(p.y-CY,p.x-CX);for(let i=-1;i<=1;i++)fire(a+i*.2,220,6,'#c8fbff',.5)}
+    if(S.a2>3.5){S.a2=0;const a=Math.atan2(p.y-S.by,p.x-S.bx);for(let i=-1;i<=1;i++)fire(a+i*.2,220,6,'#c8fbff',.5)}
   }
 }
 function mv(k,vx,vy,sp){
-  const x=k.x+vx*sp,y=k.y+vy*sp,dx=x-CX,dy=y-CY,d=Math.hypot(dx,dy)||1;
-  const c=Math.max(75,Math.min(R-14,d));
-  k.x=CX+dx/d*c;k.y=CY+dy/d*c;
+  let x=k.x+vx*sp,y=k.y+vy*sp;
+  const dx=x-CX,dy=y-CY,d=Math.hypot(dx,dy)||1;
+  if(d>R-14){x=CX+dx/d*(R-14);y=CY+dy/d*(R-14)}
+  const bx=x-S.bx,by=y-S.by,bd=Math.hypot(bx,by)||1;
+  if(bd<75){x=S.bx+bx/bd*75;y=S.by+by/bd*75}
+  k.x=x;k.y=y;
 }
 function bot(b,dt){
   let th=null,md=95;
@@ -123,16 +126,31 @@ function clearField(){
   S.pr=[];S.pend=null;
   for(const k of S.k){k.held=null;k.holdT=0;k.cat=0}
 }
+function moveBoss(dt){
+  if(S.ph!==0)return;
+  S.mvT+=dt;
+  if(!S.moving&&S.mvT>=10){
+    S.mvT=0;S.moving=true;
+    const a=Math.random()*TAU,rr=60+Math.random()*160;
+    S.tx=CX+Math.cos(a)*rr;S.ty=CY+Math.sin(a)*rr;
+  }
+  if(S.moving){
+    const dx=S.tx-S.bx,dy=S.ty-S.by,d=Math.hypot(dx,dy);
+    if(d<3)S.moving=false;
+    else{S.bx+=dx/d*45*dt;S.by+=dy/d*45*dt}
+  }
+}
 function update(dt){
   S.t+=dt;
   if(S.brk>0){S.brk-=dt;if(S.brk<=0){S.brk=0;S.a1=S.a2=0}}
   else{
     S.pt+=dt;
     if(S.pt>=PHASES[S.ph].t){
-      S.ph++;S.pt=0;clearField();
+      S.ph++;S.pt=0;clearField();S.bx=CX;S.by=CY;S.mvT=0;S.moving=false;
       if(S.ph>=4)return finish(true);
-      S.brk=4;S.msg='Phase cleared!';
-    }else spawn(dt);
+      for(const k of S.k)if(k.alive)k.hp=2;
+      S.brk=4;S.msg='Phase cleared! Hearts restored.';
+    }else{moveBoss(dt);spawn(dt)}
   }
   const p=S.k[0];
   const dx=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0),dy=(keys.ArrowDown?1:0)-(keys.ArrowUp?1:0);
@@ -200,6 +218,22 @@ function kernelPath(w,h){
   g.bezierCurveTo(w,h*.1,w*.35,h*.55,0,h);
   g.closePath();
 }
+function rr(x,y,w,h,c){g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,c);else g.rect(x,y,w,h)}
+function drawMicrowave(x,y){
+  const glow=.35+Math.sin(S.t*6)*.15;
+  g.fillStyle='#c9ced6';rr(x-62,y-44,124,88,9);g.fill();
+  g.strokeStyle='#7b8491';g.lineWidth=2;g.stroke();
+  g.fillStyle='#1c2733';rr(x-54,y-36,74,72,6);g.fill();
+  g.fillStyle='rgba(255,214,102,'+glow+')';rr(x-48,y-30,62,60,5);g.fill();
+  g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.ellipse(x-17,y+14,22,5,0,0,TAU);g.fill();
+  g.fillStyle='#aab1bb';rr(x+26,y-36,28,72,4);g.fill();
+  g.fillStyle='#0b1a12';rr(x+30,y-31,20,11,2);g.fill();
+  g.fillStyle='#7dff9c';g.font='9px monospace';g.textAlign='center';g.fillText('0:30',x+40,y-22);
+  g.fillStyle='#5b6470';
+  for(let i=0;i<4;i++){g.beginPath();g.arc(x+34+(i%2)*12,y-4+Math.floor(i/2)*14,4,0,TAU);g.fill()}
+  g.fillStyle='#e63946';g.beginPath();g.arc(x+40,y+28,4.5,0,TAU);g.fill();
+  g.fillStyle='#7b8491';g.fillRect(x+21,y-20,3,40);
+}
 function draw(){
   const ph=PHASES[Math.min(S.ph,3)];
   g.fillStyle='#18212c';g.fillRect(0,0,W,H);
@@ -212,7 +246,8 @@ function draw(){
   }
   g.globalAlpha=S.brk>0?.5:1;
   g.font='72px serif';g.textAlign='center';g.fillStyle='#fff';
-  g.fillText(ph.e,CX+(S.brk>0?0:Math.sin(S.t*3)*4),CY+26);
+  if(ph.n==='Microwave')drawMicrowave(S.bx,S.by);
+  else g.fillText(ph.e,S.bx+(S.moving?Math.sin(S.t*8)*3:0),S.by+26);
   g.globalAlpha=1;
   g.font='16px Georgia';g.fillStyle='#f5efe0';g.textAlign='left';
   g.fillText(S.brk>0?'Break':ph.n+' phase  '+Math.ceil(PHASES[S.ph].t-S.pt)+'s',12,24);
