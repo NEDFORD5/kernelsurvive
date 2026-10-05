@@ -9,7 +9,7 @@ const PHASES=[
   {n:'Fire',e:'🔥',t:25,c:'#ff6a2b'},{n:'Microwave',e:'',t:30,c:'#7df9ff'}
 ];
 const keys={};let S=null,last=0,mx=CX,my=CY,useMouse=false;
- 
+
 addEventListener('keydown',e=>{
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
   keys[e.key]=true;
@@ -21,7 +21,7 @@ C.addEventListener('mousemove',e=>{
   mx=(e.clientX-r.left)*W/r.width;my=(e.clientY-r.top)*H/r.height;useMouse=true;
 });
 C.addEventListener('mousedown',()=>{if(S&&!S.over)act(S.k[0])});
- 
+
 const ui=document.getElementById('ui'),picks=document.getElementById('picks');
 function menu(title,msg){
   document.getElementById('title').textContent=title;
@@ -36,7 +36,7 @@ function menu(title,msg){
   ui.classList.remove('hide');
 }
 menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Microwave in the middle. Arrow keys move, Space uses your ability. Pick a kernel:");
- 
+
 function kernel(type,isP){
   const a=Math.random()*TAU,r=90+Math.random()*(R-130);
   return{x:CX+Math.cos(a)*r,y:CY+Math.sin(a)*r,hp:2,type,isP,inv:0,cd:0,sh:0,cat:0,
@@ -303,4 +303,3 @@ function loop(t){
   if(!S.over)draw();
   requestAnimationFrame(loop);
 }
- 
