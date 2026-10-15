@@ -1,4 +1,5 @@
-const C=document.getElementById('c'),g=C.getContext('2d'),W=1000,H=800,CX=500,CY=400,R=370,TAU=Math.PI*2;
+const C=document.getElementById('c'),g=C.getContext('2d'),W=1200,H=1000,CX=600,CY=500,R=480,TAU=Math.PI*2;
+C.width=W;C.height=H;
 const KERNELS={
   shield:{c:'#dc9c63',tip:'#ffe4ad',edge:'#8e6d4b',w:12,h:14,n:'Shield',d:'Bubble blocks and deflects hazards for 2s'},
   throw:{c:'#c07d54',tip:'#ffe4ad',edge:'#8e6d4b',w:10,h:15,n:'Catch & Throw',d:'Catch a hazard, aim with the mouse, throw with Space or click'},
@@ -42,12 +43,12 @@ menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive B
 function kernel(type,isP){
   const a=Math.random()*TAU,r=90+Math.random()*(R-130);
   return{x:CX+Math.cos(a)*r,y:CY+Math.sin(a)*r,hp:2,type,isP,inv:0,cd:0,sh:0,cat:0,
-    alive:true,tx:CX,ty:CY+150,held:null,holdT:0,dir:-Math.PI/2,aim:0,tilt:(Math.random()-.5)*.5,sz:.92+Math.random()*.16};
+    alive:true,tx:CX,ty:CY+150,held:null,holdT:0,pop:0,dir:-Math.PI/2,aim:0,tilt:(Math.random()-.5)*.5,sz:.92+Math.random()*.16};
 }
 function start(type){
   const types=Object.keys(KERNELS);
-  S={t:0,ph:0,pt:0,a1:0,a2:0,ang:0,pr:[],over:false,brk:3.5,msg:'Get ready!',pend:null,bx:CX,by:CY,tx:CX,ty:CY,mvT:0,moving:false,k:[kernel(type,true)]};
-  for(let i=0;i<11;i++)S.k.push(kernel(types[i%3],false));
+  S={t:0,ph:0,pt:0,a1:0,a2:0,ang:0,pr:[],over:false,brk:3.5,msg:'Get ready!',pend:null,dying:0,bx:CX,by:CY,tx:CX,ty:CY,mvT:0,moving:false,k:[kernel(type,true)]};
+  for(let i=0;i<23;i++)S.k.push(kernel(types[i%3],false));
   ui.classList.add('hide');
   last=performance.now();requestAnimationFrame(loop);
 }
@@ -84,8 +85,8 @@ function spawn(dt){
     if(S.pend){
       S.pend.t-=dt;
       if(S.pend.t<=0){
-        for(let i=0;i<24;i++){
-          const a=i/24*TAU,d=((a-S.pend.gap)%TAU+TAU)%TAU;
+        for(let i=0;i<32;i++){
+          const a=i/32*TAU,d=((a-S.pend.gap)%TAU+TAU)%TAU;
           if(d>.35&&d<TAU-.35)fire(a,80,14,'#ff6a2b',1);
         }
         S.pend=null;S.a2=0;
@@ -133,7 +134,7 @@ function moveBoss(dt){
   S.mvT+=dt;
   if(!S.moving&&S.mvT>=10){
     S.mvT=0;S.moving=true;
-    const a=Math.random()*TAU,rr=60+Math.random()*160;
+    const a=Math.random()*TAU,rr=60+Math.random()*220;
     S.tx=CX+Math.cos(a)*rr;S.ty=CY+Math.sin(a)*rr;
   }
   if(S.moving){
@@ -144,6 +145,7 @@ function moveBoss(dt){
 }
 function update(dt){
   S.t+=dt;
+  if(S.dying>0){S.dying-=dt;if(S.dying<=0)return finish(false)}
   if(S.brk>0){S.brk-=dt;if(S.brk<=0){S.brk=0;S.a1=S.a2=0}}
   else{
     S.pt+=dt;
@@ -160,7 +162,7 @@ function update(dt){
   if(dx||dy){p.dir=Math.atan2(dy,dx);}
   if(p.alive)mv(p,dx/l,dy/l,230*dt);
   for(const k of S.k){
-    if(!k.alive)continue;
+    if(!k.alive){k.pop+=dt;continue}
     if(!k.isP)bot(k,dt);
     k.inv=Math.max(0,k.inv-dt);k.cd=Math.max(0,k.cd-dt);
     k.sh=Math.max(0,k.sh-dt);k.cat=Math.max(0,k.cat-dt);
@@ -190,7 +192,7 @@ function update(dt){
         if(k.hp<=0){
           k.alive=false;
           if(k.held){k.held.dead=true;k.held=null}
-          if(k.isP)return finish(false);
+          if(k.isP)S.dying=1.2;
         }
       }
     }
@@ -254,6 +256,17 @@ function popBlob(x,y){
   g.fillStyle='#d8a95f';for(const [dx,dy,q] of bs){g.beginPath();g.arc(x+dx,y+dy,q+2,0,TAU);g.fill()}
   g.fillStyle='#fff3be';for(const [dx,dy,q] of bs){g.beginPath();g.arc(x+dx,y+dy,q,0,TAU);g.fill()}
 }
+function drawPop(k){
+  const t=k.pop,s=t<.25?.5+t/.25*1.1:1.6-Math.min(.3,(t-.25)*.5),b=t<.6?Math.sin(t/.6*Math.PI)*22:0;
+  g.fillStyle='#b29067';g.beginPath();g.ellipse(k.x,k.y+14,16,5,0,0,TAU);g.fill();
+  if(t<.45){g.strokeStyle='rgba(255,243,190,'+(1-t/.45)+')';g.lineWidth=4;g.beginPath();g.arc(k.x,k.y,10+t*160,0,TAU);g.stroke()}
+  g.save();g.translate(k.x,k.y-b);g.scale(s,s);popBlob(0,0);g.restore();
+  if(t<.7){
+    g.globalAlpha=1-t/.7;g.fillStyle='#fff';g.strokeStyle='#8e6d4b';g.lineWidth=3;
+    g.font='bold 18px Georgia';g.textAlign='center';
+    g.strokeText('POP!',k.x,k.y-34-b);g.fillText('POP!',k.x,k.y-34-b);g.globalAlpha=1;
+  }
+}
 function draw(){
   const ph=PHASES[Math.min(S.ph,3)];
   g.fillStyle=ph.o;g.fillRect(0,0,W,H);
@@ -274,14 +287,14 @@ function draw(){
   g.globalAlpha=1;
   g.font='16px Georgia';g.fillStyle='#f5efe0';g.textAlign='left';
   g.fillText(S.brk>0?'Break':ph.n+' phase  '+Math.ceil(PHASES[S.ph].t-S.pt)+'s',12,24);
-  g.textAlign='right';g.fillText('Kernels left: '+S.k.filter(k=>k.alive).length+'/12',W-12,24);
+  g.textAlign='right';g.fillText('Kernels left: '+S.k.filter(k=>k.alive).length+'/'+S.k.length,W-12,24);
   for(const q of S.pr){
     g.fillStyle=q.col;g.strokeStyle=ph.pe;g.lineWidth=q.r<6?1.5:3;
     g.beginPath();g.arc(q.x,q.y,q.r,0,TAU);g.fill();g.stroke();
     if(q.r>=8){g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.arc(q.x-q.r*.3,q.y-q.r*.3,q.r*.22,0,TAU);g.fill()}
   }
   for(const k of S.k){
-    if(!k.alive){popBlob(k.x,k.y);continue}
+    if(!k.alive){drawPop(k);continue}
     g.globalAlpha=k.inv>0&&Math.floor(S.t*20)%2?.4:1;
     const kv=KERNELS[k.type];
     g.fillStyle='#b29067';g.beginPath();g.ellipse(k.x,k.y+kv.h*k.sz+6,kv.w*.9,4,0,0,TAU);g.fill();
@@ -330,4 +343,3 @@ function loop(t){
   if(!S.over)draw();
   requestAnimationFrame(loop);
 }
- 
