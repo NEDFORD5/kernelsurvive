@@ -12,7 +12,7 @@ const PHASES=[
   {n:'Microwave',e:'',t:30,c:'#7df9ff',o:'#6b4d33',a:'#ddb783',r:'#58a9b5',p:'#6fe8f5',pe:'#1f6f7c'}
 ];
 const keys={};let S=null,last=0,mx=CX,my=CY,useMouse=false;
- 
+
 addEventListener('keydown',e=>{
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
   keys[e.key]=true;
@@ -24,11 +24,31 @@ C.addEventListener('mousemove',e=>{
   mx=(e.clientX-r.left)*W/r.width;my=(e.clientY-r.top)*H/r.height;useMouse=true;
 });
 C.addEventListener('mousedown',()=>{if(S&&!S.over)act(S.k[0])});
- 
+
+const DIFFS={
+  easy:{n:'Easy',d:'Fewer, slower hazards and half damage',rate:.65,speed:.85,dmg:.5},
+  normal:{n:'Normal',d:'The standard game',rate:1,speed:1,dmg:1},
+  hard:{n:'Hard',d:'More and faster hazards',rate:1.4,speed:1.2,dmg:1}
+};
+let diff='normal';
 const ui=document.getElementById('ui'),picks=document.getElementById('picks');
+const diffRow=document.createElement('div');
+diffRow.className='row';diffRow.style.marginBottom='12px';
+picks.parentNode.insertBefore(diffRow,picks);
+function drawDiff(){
+  diffRow.innerHTML='';
+  for(const k in DIFFS){
+    const b=document.createElement('button');
+    b.innerHTML=DIFFS[k].n+'<small>'+DIFFS[k].d+'</small>';
+    if(k===diff)b.classList.add('sel');
+    b.onclick=()=>{diff=k;drawDiff()};
+    diffRow.appendChild(b);
+  }
+}
 function menu(title,msg){
   document.getElementById('title').textContent=title;
   document.getElementById('msg').textContent=msg;
+  drawDiff();
   picks.innerHTML='';
   for(const k in KERNELS){
     const b=document.createElement('button');
@@ -38,8 +58,8 @@ function menu(title,msg){
   }
   ui.classList.remove('hide');
 }
-menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Microwave in the middle. Arrow keys move, Space uses your ability. Pick a kernel:");
- 
+menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Microwave in the middle. Arrow keys move, Space uses your ability. Pick a difficulty and a kernel:");
+
 function kernel(type,isP){
   const a=Math.random()*TAU,r=90+Math.random()*(R-130);
   return{x:CX+Math.cos(a)*r,y:CY+Math.sin(a)*r,hp:2,type,isP,inv:0,cd:0,sh:0,cat:0,
@@ -71,10 +91,10 @@ function throwIt(k){
   k.held=null;k.holdT=0;
 }
 function fire(a,sp,r,col,dmg){
-  S.pr.push({x:S.bx+Math.cos(a)*40,y:S.by+Math.sin(a)*40,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r,col:PHASES[S.ph].p,dmg,owner:'boss',from:null,held:null});
+  S.pr.push({x:S.bx+Math.cos(a)*40,y:S.by+Math.sin(a)*40,vx:Math.cos(a)*sp*DIFFS[diff].speed,vy:Math.sin(a)*sp*DIFFS[diff].speed,r,col:PHASES[S.ph].p,dmg:dmg*DIFFS[diff].dmg,owner:'boss',from:null,held:null});
 }
 function spawn(dt){
-  S.a1+=dt;S.a2+=dt;const ph=S.ph,p=S.k[0];
+  S.a1+=dt*DIFFS[diff].rate;S.a2+=dt*DIFFS[diff].rate;const ph=S.ph,p=S.k[0];
   if(ph===0){
     if(S.a1>.5){S.a1=0;S.ang+=.6;for(let i=0;i<3;i++)fire(S.ang+i*TAU/3,140,8,'#f6d55c',.5)}
     if(S.a2>3.6){S.a2=0;for(let i=0;i<8;i++)fire(S.ang+i*TAU/8,100,10,'#ffe58a',.5)}
@@ -286,7 +306,7 @@ function draw(){
   else g.fillText(ph.e,S.bx+(S.moving?Math.sin(S.t*8)*3:0),S.by+26);
   g.globalAlpha=1;
   g.font='16px Georgia';g.fillStyle='#f5efe0';g.textAlign='left';
-  g.fillText(S.brk>0?'Break':ph.n+' phase  '+Math.ceil(PHASES[S.ph].t-S.pt)+'s',12,24);
+  g.fillText((S.brk>0?'Break':ph.n+' phase  '+Math.ceil(PHASES[S.ph].t-S.pt)+'s')+'   ['+DIFFS[diff].n+']',12,24);
   g.textAlign='right';g.fillText('Kernels left: '+S.k.filter(k=>k.alive).length+'/'+S.k.length,W-12,24);
   for(const q of S.pr){
     g.fillStyle=q.col;g.strokeStyle=ph.pe;g.lineWidth=q.r<6?1.5:3;
