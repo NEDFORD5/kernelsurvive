@@ -1,5 +1,10 @@
-const C=document.getElementById('c'),g=C.getContext('2d'),W=1200,H=1000,CX=600,CY=500,R=480,TAU=Math.PI*2;
-C.width=W;C.height=H;
+const C=document.getElementById('c'),g=C.getContext('2d'),W=1200,H=1000,VW=1000,VH=750,Z=1.3,CX=600,CY=500,R=480,TAU=Math.PI*2;
+C.width=VW;C.height=VH;
+const cam={l:0,t:0};
+function updCam(){
+  const p=S.k[0],vw=VW/Z,vh=VH/Z;
+  cam.l=Math.max(0,Math.min(W-vw,p.x-vw/2));cam.t=Math.max(0,Math.min(H-vh,p.y-vh/2));
+}
 const KERNELS={
   shield:{c:'#dc9c63',tip:'#ffe4ad',edge:'#8e6d4b',w:12,h:14,n:'Shield',d:'Bubble blocks and deflects hazards for 2s'},
   throw:{c:'#c07d54',tip:'#ffe4ad',edge:'#8e6d4b',w:10,h:15,n:'Catch & Throw',d:'Catch a hazard, aim with the mouse, throw with Space or click'},
@@ -11,7 +16,7 @@ const PHASES=[
   {n:'Fire',e:'🔥',t:25,c:'#ff6a2b',o:'#6b4d33',a:'#ddb783',r:'#d9603a',p:'#ff7a1a',pe:'#a82810'},
   {n:'Microwave',e:'',t:30,c:'#7df9ff',o:'#6b4d33',a:'#ddb783',r:'#58a9b5',p:'#6fe8f5',pe:'#1f6f7c'}
 ];
-const keys={};let S=null,last=0,mx=CX,my=CY,useMouse=false;
+const keys={};let S=null,last=0,smx=VW/2,smy=VH/2,useMouse=false;
 
 addEventListener('keydown',e=>{
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
@@ -21,34 +26,32 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>keys[e.key]=false);
 C.addEventListener('mousemove',e=>{
   const r=C.getBoundingClientRect();
-  mx=(e.clientX-r.left)*W/r.width;my=(e.clientY-r.top)*H/r.height;useMouse=true;
+  smx=(e.clientX-r.left)*VW/r.width;smy=(e.clientY-r.top)*VH/r.height;useMouse=true;
 });
 C.addEventListener('mousedown',()=>{if(S&&!S.over)act(S.k[0])});
 
 const DIFFS={
-  easy:{n:'Easy',d:'Fewer, slower hazards and half damage',rate:.65,speed:.85,dmg:.5},
-  normal:{n:'Normal',d:'The standard game',rate:1,speed:1,dmg:1},
-  hard:{n:'Hard',d:'More and faster hazards',rate:1.4,speed:1.2,dmg:1}
+  easy:{n:'Easy',d:'Fewer, slower, smaller hazards. Hits do half damage.',rate:.55,speed:.8,dmg:.5,size:.85,heal:2},
+  normal:{n:'Normal',d:'The standard game.',rate:1,speed:1,dmg:1,size:1,heal:2},
+  hard:{n:'Hard',d:'More, faster, bigger hazards. Only 1 heart back after each level.',rate:1.6,speed:1.3,dmg:1,size:1.2,heal:1}
 };
+const DCOL={easy:'#9bd67c',normal:'#f4c430',hard:'#e8674a'};
 let diff='normal';
 const ui=document.getElementById('ui'),picks=document.getElementById('picks');
-const diffRow=document.createElement('div');
-diffRow.className='row';diffRow.style.marginBottom='12px';
-picks.parentNode.insertBefore(diffRow,picks);
-function drawDiff(){
-  diffRow.innerHTML='';
+function setText(t,m){document.getElementById('title').textContent=t;document.getElementById('msg').textContent=m}
+function menu(title,msg){
+  setText(title,msg);picks.innerHTML='';
   for(const k in DIFFS){
     const b=document.createElement('button');
     b.innerHTML=DIFFS[k].n+'<small>'+DIFFS[k].d+'</small>';
-    if(k===diff)b.classList.add('sel');
-    b.onclick=()=>{diff=k;drawDiff()};
-    diffRow.appendChild(b);
+    b.style.background=DCOL[k];
+    b.onclick=()=>{diff=k;kernelScreen()};
+    picks.appendChild(b);
   }
+  ui.classList.remove('hide');
 }
-function menu(title,msg){
-  document.getElementById('title').textContent=title;
-  document.getElementById('msg').textContent=msg;
-  drawDiff();
+function kernelScreen(){
+  setText('Choose your kernel','Difficulty: '+DIFFS[diff].n+'. Arrow keys move, Space uses your ability.');
   picks.innerHTML='';
   for(const k in KERNELS){
     const b=document.createElement('button');
@@ -56,9 +59,12 @@ function menu(title,msg){
     b.style.background=KERNELS[k].c;b.onclick=()=>start(k);
     picks.appendChild(b);
   }
-  ui.classList.remove('hide');
+  const back=document.createElement('button');
+  back.textContent='Back';back.style.background='#e8e0d0';
+  back.onclick=()=>menu("Popcorn: Don't Get Popped",'Pick a difficulty:');
+  picks.appendChild(back);
 }
-menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Microwave in the middle. Arrow keys move, Space uses your ability. Pick a difficulty and a kernel:");
+menu("Popcorn: Don't Get Popped","You are a kernel in a round kitchen. Survive Butter, Salt, Fire and the Microwave. Pick a difficulty:");
 
 function kernel(type,isP){
   const a=Math.random()*TAU,r=90+Math.random()*(R-130);
@@ -72,7 +78,7 @@ function start(type){
   ui.classList.add('hide');
   last=performance.now();requestAnimationFrame(loop);
 }
-function aimOf(k){return k.isP?(useMouse?Math.atan2(my-k.y,mx-k.x):k.dir):k.aim}
+function aimOf(k){return k.isP?(useMouse?Math.atan2(cam.t+smy/Z-k.y,cam.l+smx/Z-k.x):k.dir):k.aim}
 function act(k){
   if(k.type==='throw'&&k.held)throwIt(k);else useAbility(k);
 }
@@ -91,7 +97,7 @@ function throwIt(k){
   k.held=null;k.holdT=0;
 }
 function fire(a,sp,r,col,dmg){
-  S.pr.push({x:S.bx+Math.cos(a)*40,y:S.by+Math.sin(a)*40,vx:Math.cos(a)*sp*DIFFS[diff].speed,vy:Math.sin(a)*sp*DIFFS[diff].speed,r,col:PHASES[S.ph].p,dmg:dmg*DIFFS[diff].dmg,owner:'boss',from:null,held:null});
+  S.pr.push({x:S.bx+Math.cos(a)*40,y:S.by+Math.sin(a)*40,vx:Math.cos(a)*sp*DIFFS[diff].speed,vy:Math.sin(a)*sp*DIFFS[diff].speed,r:r*DIFFS[diff].size,col:PHASES[S.ph].p,dmg:dmg*DIFFS[diff].dmg,owner:'boss',from:null,held:null});
 }
 function spawn(dt){
   S.a1+=dt*DIFFS[diff].rate;S.a2+=dt*DIFFS[diff].rate;const ph=S.ph,p=S.k[0];
@@ -164,7 +170,7 @@ function moveBoss(dt){
   }
 }
 function update(dt){
-  S.t+=dt;
+  S.t+=dt;updCam();
   if(S.dying>0){S.dying-=dt;if(S.dying<=0)return finish(false)}
   if(S.brk>0){S.brk-=dt;if(S.brk<=0){S.brk=0;S.a1=S.a2=0}}
   else{
@@ -172,8 +178,8 @@ function update(dt){
     if(S.pt>=PHASES[S.ph].t){
       S.ph++;S.pt=0;clearField();S.bx=CX;S.by=CY;S.mvT=0;S.moving=false;
       if(S.ph>=4)return finish(true);
-      for(const k of S.k)if(k.alive)k.hp=2;
-      S.brk=4;S.msg='Phase cleared! Hearts restored.';
+      for(const k of S.k)if(k.alive)k.hp=Math.min(2,k.hp+DIFFS[diff].heal);
+      S.brk=4;S.msg='Phase cleared! '+(DIFFS[diff].heal>=2?'Hearts restored.':'1 heart restored.');
     }else{moveBoss(dt);spawn(dt)}
   }
   const p=S.k[0];
@@ -223,7 +229,7 @@ function update(dt){
 function finish(win){
   S.over=true;
   menu(win?'You stayed a kernel!':'You got popped! 🍿',
-    win?'You survived the kitchen. Play again with any kernel:':'Reached '+PHASES[Math.min(S.ph,3)].n+' phase. Try again:');
+    win?'You survived the kitchen. Pick a difficulty to play again:':'Reached '+PHASES[Math.min(S.ph,3)].n+' phase. Pick a difficulty to try again:');
 }
 function hearts(x,y,hp,sz){
   g.font=sz+'px serif';g.textAlign='left';g.lineJoin='round';
@@ -289,7 +295,9 @@ function drawPop(k){
 }
 function draw(){
   const ph=PHASES[Math.min(S.ph,3)];
-  g.fillStyle=ph.o;g.fillRect(0,0,W,H);
+  updCam();g.setTransform(1,0,0,1,0,0);
+  g.fillStyle=ph.o;g.fillRect(0,0,VW,VH);
+  g.setTransform(Z,0,0,Z,-cam.l*Z,-cam.t*Z);
   g.fillStyle=ph.a;g.beginPath();g.arc(CX,CY,R,0,TAU);g.fill();
   g.strokeStyle='rgba(255,255,255,.14)';g.lineWidth=18;
   for(const f of[.3,.55,.8]){g.beginPath();g.arc(CX,CY,R*f,0,TAU);g.stroke()}
@@ -305,9 +313,6 @@ function draw(){
   else if(ph.n==='Butter')drawButter(S.bx,S.by);
   else g.fillText(ph.e,S.bx+(S.moving?Math.sin(S.t*8)*3:0),S.by+26);
   g.globalAlpha=1;
-  g.font='16px Georgia';g.fillStyle='#f5efe0';g.textAlign='left';
-  g.fillText((S.brk>0?'Break':ph.n+' phase  '+Math.ceil(PHASES[S.ph].t-S.pt)+'s')+'   ['+DIFFS[diff].n+']',12,24);
-  g.textAlign='right';g.fillText('Kernels left: '+S.k.filter(k=>k.alive).length+'/'+S.k.length,W-12,24);
   for(const q of S.pr){
     g.fillStyle=q.col;g.strokeStyle=ph.pe;g.lineWidth=q.r<6?1.5:3;
     g.beginPath();g.arc(q.x,q.y,q.r,0,TAU);g.fill();g.stroke();
@@ -347,13 +352,17 @@ function draw(){
     g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=2;g.setLineDash([6,6]);g.beginPath();
     g.moveTo(p.x,p.y);g.lineTo(p.x+Math.cos(a)*110,p.y+Math.sin(a)*110);g.stroke();g.setLineDash([]);
   }
+  g.setTransform(1,0,0,1,0,0);
+  g.font='16px Georgia';g.fillStyle='#f5efe0';g.textAlign='left';
+  g.fillText((S.brk>0?'Break':ph.n+' phase  '+Math.ceil(PHASES[S.ph].t-S.pt)+'s')+'   ['+DIFFS[diff].n+']',12,24);
+  g.textAlign='right';g.fillText('Kernels left: '+S.k.filter(k=>k.alive).length+'/'+S.k.length,VW-12,24);
   if(S.brk>0){
     g.fillStyle='#3b2614';g.textAlign='center';
-    g.font='30px Georgia';g.fillText(S.msg,CX,CY-90);
-    g.font='18px Georgia';g.fillText('Next: '+PHASES[S.ph].n+' in '+Math.ceil(S.brk),CX,CY-62);
+    g.font='30px Georgia';g.fillText(S.msg,VW/2,VH/2-120);
+    g.font='18px Georgia';g.fillText('Next: '+PHASES[S.ph].n+' in '+Math.ceil(S.brk),VW/2,VH/2-92);
   }
   g.fillStyle='#f5efe0';g.textAlign='left';g.font='16px Georgia';
-  g.fillText(KERNELS[p.type].n+': '+(p.held?'aim and press Space to throw':p.cd>0?'recharging '+p.cd.toFixed(1)+'s':'ready (Space)'),12,H-10);
+  g.fillText(KERNELS[p.type].n+': '+(p.held?'aim and press Space to throw':p.cd>0?'recharging '+p.cd.toFixed(1)+'s':'ready (Space)'),12,VH-10);
   hearts(14,66,p.hp,32);
 }
 function loop(t){
